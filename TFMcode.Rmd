@@ -1,0 +1,765 @@
+---
+title: "Untitled"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r FUNCTIONS}
+################
+### Packages ###
+################
+library(fda)
+library(shinythemes)
+library(shiny)
+library(shinyWidgets)
+library(caret)
+library(e1071)
+library(fda.usc)
+library(tidyverse)
+library(hrbrthemes)
+library(viridis)
+library(shinydashboard)
+library(DescTools)
+library(knitr)
+library(kableExtra)
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+#####################
+### data function ###
+#####################
+
+# We create a function called data to select the dataset we want to analyze. There are
+# 13 simulated data and 1 real data set (growth data)
+data <- function(dataset){
+  color_1 <- "deepskyblue2"
+  color_2 <- "deeppink"
+  color_3 <- "green"
+  if(dataset == "growth"){
+    attach(growth)
+    X1 <- t(growth$hgtf)
+    X2 <- t(growth$hgtm)
+    t <- growth$age
+    nf <- ncol(growth$hgtf)
+    nm <- ncol(growth$hgtm)
+    rangeval = c(1,18)
+    truelabels <- c(rep(1,nf),rep(0,nm)) # 1 are girls and 0 are boys
+    data <- rbind(X1,X2)
+    xlab <- "Age (years)"
+    ylab <- "Height (cm)"
+    main="Growth of boys (blue) and girls (pink)"
+    colors <- c(color_1, color_2)
+    pch <- c(16, 17)
+  }else{
+    if(dataset>=2 & dataset<=9){
+      n <- 50
+      rangeval = c(0,1)
+      t <- seq(0,1,length=30)
+      truelabels <- c(rep(1,n), rep(0,n)) # 1 is pink and 0 blue
+      xlab <- "t"
+      ylab <- "Value"
+      colors <- c(color_1,color_2)
+      pch <- c(16, 17)
+      X <- matrix(0,n,length(t))
+      sigma <- matrix(0,length(t),length(t))
+      
+      # Building sigma
+      for (i in 1:length(t)){
+        for (j in 1:length(t)){
+          sigma[i,j] <- 0.3*exp((-1/0.3)*abs(t[j]-t[i]));
+        }
+      }
+      
+      #centered Gaussian process
+      egauss <- mvrnorm(n ,rep(0, length(t)), sigma) #a sample from the specified multivariate normal distribution
+      
+      sigma2 <- matrix(0,length(t),length(t))
+      
+      # Construimos sigma
+      for (i in 1:length(t)){
+        for (j in 1:length(t)){
+          sigma2[i,j] <- 0.5*exp((-1/0.2)*abs(t[j]-t[i]));
+        }
+      }
+      
+      #centered Gaussian process
+      hgauss <- mvrnorm(n ,rep(0, length(t)), sigma) #a sample from the specified multivariate normal distribution
+      
+      
+      ## MODEL 1
+      
+      X1 <- X
+      for (i in 1:n){
+        for (j in 1:length(t)){
+          X1[i,j] <- 30*t[j]^(3/2)*(1-t[j])+egauss[i,j]
+        }
+      }
+      
+      if(dataset==2){  ## MODEL 2
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]^(3/2)*(1-t[j])+0.5+egauss[i,j]
+          }
+        }
+      }
+      else if(dataset==3){  ## MODEL 3
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]^(3/2)*(1-t[j])+0.75+egauss[i,j]
+          }
+        }
+      }
+      else if(dataset==4){  ## MODEL 4
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]^(3/2)*(1-t[j])+1.+egauss[i,j]
+          }
+        }
+      }
+      else if(dataset==5){  ## MODEL 5
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]^(3/2)*(1-t[j])+2*egauss[i,j]
+          }
+        }
+      }
+      else if(dataset==6){  ## MODEL 6
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]^(3/2)*(1-t[j])+0.25*egauss[i,j]
+          }
+        }
+      }
+      else if(dataset==7){  ## MODEL 7
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]^(3/2)*(1-t[j])+hgauss[i,j]
+          }
+        }
+      }
+      else if(dataset==8){  ## MODEL 8
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]*(1-t[j])+hgauss[i,j]
+          }
+        }
+      }
+      else if(dataset==9){  ## MODEL 9
+        X2 <- X
+        for (i in 1:n){
+          for (j in 1:length(t)){
+            X2[i,j] <- 30*t[j]*(1-t[j])+egauss[i,j]
+          }
+        }
+      }
+      data <- rbind(X1, X2)
+      main=paste("Model 1 (pink) & Model ", dataset, " (blue)")
+    }
+    if(dataset == 11| dataset == 12){
+      n <- 50
+      rangeval = c(0,1)
+      t <- seq(0,1,length.out=150)
+      truelabels <- c(rep(1,n), rep(0,n)) # 1 is pink and 0 blue
+      xlab <- "t"
+      ylab <- "Value"
+      colors <- c(color_1, color_2)
+      pch <- c(16, 17)
+      P <- 150 #equidistant points in the interval I=[0,1]
+      K <- 100 #components
+      m1 <- t*(1-t)
+      
+      rho <- rep(0, K)
+      for(k in 1:K){
+        if(k<4)
+          rho[k] <- 1/(k+1)
+        else
+          rho[k] <- 1/(k+1)^2
+      }
+      
+      theta <- matrix(0,K,P)
+      for (k in 1:K) {
+        if (k%%2 == 0)
+          theta[k, ] <- sqrt(2) * sin(k*pi*t)
+        else if (k%%2 != 0 && k != 1)
+          theta[k, ] <- sqrt( 2 ) * cos(( k-1)*pi* t)
+        else
+          theta[k, ] <- rep(1, P)
+      }
+      
+      s1 <- 0
+      for (k in 1:4) {
+        s1 <- s1 + sqrt(rho[k]) * theta[k, ]
+      }
+      
+      s2 <- 0
+      for (k in 4:K) {
+        s2 <- s2 + sqrt(rho[k]) * theta[k, ]
+      }
+      
+      m2_1 <- m1 + s1
+      m2_2 <- m1 + s2
+      
+      zX <- matrix(0, n, K)
+      zY <- matrix(0, n, K)
+      
+      uX <- matrix(0, n, P)
+      uY <- matrix(0, n, P)
+      for (i in 1:n) {
+        zX[i, ] <- rnorm(K)
+        zY[i, ] <- rnorm(K)
+        for (k in 1:K) {
+          uX[i, ] <- uX[i, ] + sqrt(rho[k]) * (zX[i, k] * theta[k, ])
+          uY[i, ] <- uY[i, ] + sqrt(rho[k]) * (zY[i, k] * theta[k, ])
+        }
+      }
+      
+      X_ <- matrix(0, n, P) ## MODEL 10
+      Y1 <- matrix(0, n, P)
+      if(dataset == 11){  ## MODEL 11
+        for (i in 1:n){
+          X_[i, ] <- m1 + uX[i, ]
+          Y1[i, ] <- m2_1 + uY[i, ]
+        }
+      } else if(dataset == 12){  ## MODEL 12
+        for (i in 1:n){
+          X_[i, ] <- m1 + uX[i, ]
+          Y1[i, ] <- m2_2 + uY[i, ]
+        }
+      }
+      main = paste("Model 10 & Model ", dataset, " (blue)")
+      data <- rbind(X_, Y1)
+    }
+    if(dataset ==13){
+      n <- 50
+      rangeval = c(0,pi/3)
+      t <- seq(0, pi/3, length = 100)
+      truelabels <- c(rep(2,n), rep(1,n), rep(0,n)) # 1 is pink and 0 blue
+      xlab <- "t"
+      ylab <- "Value"
+      colors <- c(color_1, color_2, color_3)
+      pch <- c(16, 17, 18)
+      #Scenario 1
+      a1 <- runif(n,-0.25,0.25)
+      b1 <- c(0.3,1,0.2)
+      c1 <- c(1/1.3, 1/1.2, 1/4)
+      X1 <- matrix(0,n,length(t))
+      X2 <- matrix(0,n,length(t))
+      X3 <- matrix(0,n,length(t))
+      eps <- mvrnorm(n,mu=rep(2,length(t)), Sigma=(0.4^2)*diag(length(t)))
+      for (i in 1:n){
+        for (j in 1:length(t)){
+          X1[i,j] <- a1[i]+b1[1]+c1[1]*sin(1.3*t[j])+(t[j])^3
+          X2[i,j] <- a1[i]+b1[2]+c1[2]*sin(1.3*t[j])+(t[j])^3
+          X3[i,j] <- a1[i]+b1[3]+c1[3]*sin(1.3*t[j])+(t[j])^3
+        }
+      }
+      
+      Y13 <- X1+eps  ## MODEL 13
+      Y14 <- X2+eps  ## MODEL 14
+      Y15 <- X3+eps  ## MODEL 15
+      data <-rbind(Y13, Y14, Y15)
+      main=paste("Model 13 (pink), Model 14 (blue) & Model 15 (green) - Scenario 1")
+    }
+    if(dataset == 14){
+      n <- 50
+      rangeval = c(0,pi/3)
+      t <- seq(0, pi/3, length = 100)
+      truelabels <- c(rep(2,n), rep(1,n), rep(0,n)) # 1 is pink and 0 blue
+      xlab <- "t"
+      ylab <- "Value"
+      colors <- c(color_1, color_2, color_3)
+      pch <- c(16, 17, 18)
+      #Scenario 2
+      a1 <- runif(n,-0.5,0.5)
+      b1 <- c(1.1, 1.5, 2.2)
+      c1 <- c(1.5,1.7,1.9)
+      X1 <- matrix(0,n,length(t))
+      X2 <- matrix(0,n,length(t))
+      X3 <- matrix(0,n,length(t))
+      eps <- mvrnorm(n,mu=rep(2,length(t)), Sigma=(0.4^2)*diag(length(t)))
+      for (i in 1:n){
+        for (j in 1:length(t)){
+          X1[i,j] <- a1[i]+b1[1]+sin(c1[1]*pi*t[j])+cos(pi*(t[j])^2)
+          X2[i,j] <- a1[i]+b1[2]+sin(c1[2]*pi*t[j])+cos(pi*(t[j])^2)
+          X3[i,j] <- a1[i]+b1[3]+sin(c1[3]*pi*t[j])+cos(pi*(t[j])^2)
+        }
+      }
+      
+      Y13 <- X1+eps  ## MODEL 13
+      Y14 <- X2+eps  ## MODEL 14
+      Y15 <- X3+eps  ## MODEL 15
+      data <-rbind(Y13, Y14, Y15)
+      main=paste("Model 13 (pink), Model 14 (blue) & Model 15 (green) - Scenario 2")
+    }
+    if(dataset == 15){
+      n <- 50
+      rangeval = c(0,pi/3)
+      t <- seq(0, pi/3, length = 100)
+      truelabels <- c(rep(2,n), rep(1,n), rep(0,n)) # 1 is pink and 0 blue
+      xlab <- "t"
+      ylab <- "Value"
+      colors <- c(color_1, color_2, color_3)
+      pch <- c(16, 17, 18)
+      #Scenario 3
+      a1 <- runif(n,-0.25,0.25)
+      b1 <- c(1/1.8,1/1.7,1/1.5)
+      c1 <- c(1.1,1.4,1.5)
+      X1 <- matrix(0,n,length(t))
+      X2 <- matrix(0,n,length(t))
+      X3 <- matrix(0,n,length(t))
+      eps <- mvrnorm(n,mu=rep(2,length(t)), Sigma=(0.3^2)*diag(length(t)))
+      for (i in 1:n){
+        for (j in 1:length(t)){
+          X1[i,j] <- a1[i]+b1[1]*exp(c1[1]*t[j])-(t[j])^3
+          X2[i,j] <- a1[i]+b1[2]*exp(c1[2]*t[j])-(t[j])^3
+          X3[i,j] <- a1[i]+b1[3]*exp(c1[3]*t[j])-(t[j])^3
+        }
+      }
+      
+      Y13 <- X1+eps  ## MODEL 13
+      Y14 <- X2+eps  ## MODEL 14
+      Y15 <- X3+eps  ## MODEL 15
+      data <-rbind(Y13, Y14, Y15)
+      main=paste("Model 13 (pink), Model 14 (blue) & Model 15 (green) - Scenario 3")
+    }
+  }
+  datalist <- list(data = data, truelabels = truelabels, rangeval =rangeval, t=t,
+                   xlab = xlab, ylab = ylab, main = main, colors = colors, pch=pch )
+  return(datalist)
+}
+
+##########################
+### Indexes functions ####
+##########################
+
+# The following functions calculate the epigraph (EI), hypograph (HI), generalized
+# epigraph (MEI) and generalized hypograph (MHI) indexes
+EI <- function(curves){
+  index <- numeric()
+  B <- dim(curves)[1]
+  lengthcurves <- dim(curves)[2]
+  for (i in 1:B){
+    index[i] <- 0
+    env.min <- curves[i,]
+    for (j in 1:B){
+      inpoints <- sum((curves[j,] >= env.min))
+      if (inpoints == lengthcurves)
+      {index[i] <- index[i]+1}
+    }
+  }
+  index <- index/B
+  return (1-index)
+}
+
+HI <- function(curves){
+  index <- numeric()
+  B <- dim(curves)[1]
+  lengthcurves <- dim(curves)[2]
+  for (i in 1:B){
+    index[i] <- 0
+    env.max <- curves[i,]
+    for (j in 1:B){
+      inpoints <- sum(curves[j,]<=env.max)
+      if (inpoints == lengthcurves)
+      {index[i] <- index[i]+1}
+    }
+  }
+  index <- index/B
+  return (index)
+}
+
+MEI <- function(curves){
+  index <- numeric()
+  B <- dim(curves)[1]
+  lengthcurves <- dim(curves)[2]
+  for (i in 1:B){
+    index[i] <- 0
+    env.min <- curves[i,]
+    for (j in 1:B){
+      inpoints <- sum(curves[j,] >= env.min)
+      index[i] <- index[i]+inpoints
+    }
+  }
+  index <- index/(B*lengthcurves)
+  return (1-index)
+}
+
+MHI <- function(curves){
+  index <- numeric()
+  B <- dim(curves)[1]
+  lengthcurves <- dim(curves)[2]
+  for (i in 1:B){
+    index[i] <- 0
+    env.max <- curves[i,]
+    for (j in 1:B){
+      inpoints <- sum(curves[j,]<=env.max)
+      index[i] <- index[i]+inpoints
+    }
+  }
+  index <- index/(B*lengthcurves)
+  return (index)
+}
+
+##########################
+### funspline function ###
+##########################
+
+# This function fits a smooth B-spline basis for a bunch of curves X and
+# calculates first and second derivatives for each curve.
+funspline <- function(data, t, rangeval, nbasis, norder, basisobj){
+  ys <- smooth.basis(argvals = t, y = t(data), fdParobj = basisobj) #data obtained when applying a smoothed B-spline basis
+  smooth <- t(eval.fd(t,ys$fd,0)) #smoothed data
+  deriv <- t(eval.fd(t,ys$fd,1)) #first derivatives
+  deriv2 <- t(eval.fd(t,ys$fd,2)) #second derivatives
+  
+  res <- list("spline"=ys, "smooth"=smooth, "deriv"=deriv, "deriv2"=deriv2) #object containing the data and 1st and 2nd derivatives
+  return(res)
+}
+
+########################
+### indexes function ###
+########################
+
+# This function transform functional data into multivariate one using the indexes
+
+indexes <- function(data, t, rangeval, nbasis, norder, truelabels){
+  
+  basisobj <- create.bspline.basis(rangeval = rangeval, norder = as.numeric(norder), nbasis = as.numeric(nbasis))
+  dtaX <- funspline(data = data, t = t, rangeval = rangeval, nbasis = nbasis, norder = norder, basisobj = basisobj)
+  
+  dta <- data #original data
+  # dta <- dtaX$smooth # smoothed data coefs
+  ddta <- dtaX$deriv #first derivatives
+  d2dta <- dtaX$deriv2 #second derivatives
+  
+  # Applying the indexes to the original data
+  dtaEI <- EI(dta)
+  dtaHI <- HI(dta)
+  dtaMEI <- MEI(dta)
+  dtaMHI <- MHI(dta)
+  
+  # Applying the indexes to the data first derivatives
+  ddtaEI <- EI(ddta)
+  ddtaHI <- HI(ddta)
+  ddtaMEI <- MEI(ddta)
+  ddtaMHI <- MHI(ddta)
+  
+  # Applying the indexes to the data second derivatives
+  d2dtaEI <- EI(d2dta)
+  d2dtaHI <- HI(d2dta)
+  d2dtaMEI <- MEI(d2dta)
+  d2dtaMHI <- MHI(d2dta)
+  
+  r <- as.factor(truelabels)
+  
+  # New multivariate data set
+  indexes <- data.frame(dtaEI, dtaHI, dtaMEI, dtaMHI,
+                        ddtaEI, ddtaHI, ddtaMEI, ddtaMHI,
+                        d2dtaEI, d2dtaHI, d2dtaMEI, d2dtaMHI, r)
+  smooth <- as.data.frame(dtaX$smooth)
+  smooth$r <- r
+  res <- list("indexes" = indexes, "spline"=dtaX$ys, "smooth"=smooth, "deriv"=dtaX$deriv, "deriv2"=dtaX$deriv2)
+  return(res)
+}
+
+###############################
+### indexesapproah function ###
+###############################
+
+# This function apply multivariate classification techniques to the smoothed
+# dataset obtained
+
+smoothedmodels <- function(smoothed_data){
+  set.seed(123)
+  sample <- sample(c(TRUE, FALSE), nrow(smoothed_data), replace=TRUE, prob=c(0.7,0.3))
+  train  <- smoothed_data[sample, ]
+  test   <- smoothed_data[!sample, ]
+  #technique <- c("glm","naive_bayes","svmLinear","knn","rf","nnet")
+  technique <- c("glmnet","naive_bayes","svmLinear","knn","rf","nnet")
+  accuracy <-c()
+  techname <- c("GLM","NB","SVM","KNN","RF","NNET")
+  results <- data.frame()
+  for(i in 1:length(technique)){
+      tryCatch({
+        t0 <- Sys.time()
+        if(technique[i]=="nnet"| technique[i]=="rf"){
+          model <- train(r~.,
+                       method = technique[i],
+                       data = train,
+                       metric ="Accuracy",
+                       trControl=trainControl(method="none"))
+        }else{
+          if(technique[i]=="glmnet"){
+          model <- train(r~.,
+                       method = technique[i],
+                       data = train,
+                       metric ="Accuracy",
+                       family = "multinomial",
+                       trControl=trainControl(method="none"))
+          }else{
+          model <- train(r~.,
+                       method = technique[i],
+                       data = train,
+                       metric ="Accuracy")
+        }
+        }
+        predictions <- predict(model,test)
+        CM <- confusionMatrix(predictions,test$r)
+        t1 <- Sys.time()
+        print(technique[i])
+        accuracy <- CM$overall[1]
+        results<-rbind(results,data.frame(Model = techname[i], Accuracy = accuracy, Time = t1-t0))  
+      },error = function(e){})
+    
+  }
+  row.names (results) <- 1: nrow (results)
+  results<-results[order(results$Time, decreasing = F),]
+  results<-results[order(results$Accuracy, decreasing = T),]
+  
+  return(results)
+}
+
+###############################
+### indexesapproah function ###
+###############################
+
+# This function apply multivariate classification techniques to the multivariate
+# dataset obtained from the indexes
+
+indexesapproach <- function(indexes){
+  set.seed(123)
+  sample <- sample(c(TRUE, FALSE), nrow(indexes), replace=TRUE, prob=c(0.7,0.3))
+  train  <- indexes[sample, ]
+  test   <- indexes[!sample, ]
+  # original indexes
+  VARS1 <- c("dtaEI","dtaHI")
+  VARS2 <- c("ddtaEI","ddtaHI")
+  VARS3 <- c("d2dtaEI","d2dtaHI")
+  VARS4 <- c(VARS1,VARS2)
+  VARS5 <- c(VARS1,VARS3)
+  VARS6 <- c(VARS2,VARS3)
+  VARS7 <- c(VARS4,VARS3)
+  
+  # generalized indexes
+  VARS8 <- c("dtaMEI","ddtaMEI")
+  VARS9 <- c("dtaMEI","d2dtaMEI")
+  VARS10 <- c("ddtaMEI","d2dtaMEI")
+  VARS11 <- c(VARS8,"d2dtaMEI")
+  
+  # combining both indexes types
+  VARS12 <- c(VARS1,"dtaMEI")
+  VARS13 <- c(VARS2,"ddtaMEI")
+  VARS14 <- c(VARS3,"d2dtaMEI")
+  VARS15 <- c(VARS4,VARS8)
+  VARS16 <- c(VARS5,VARS9)
+  VARS17 <- c(VARS6,VARS10)
+  VARS18 <- c(VARS7,VARS11)
+  
+  VARS <- c("VARS1","VARS2","VARS3","VARS4","VARS5","VARS6","VARS7","VARS8","VARS9",
+            "VARS10","VARS11","VARS12","VARS13","VARS14","VARS15","VARS16","VARS17","VARS18")
+  
+  technique <- c("glm","naive_bayes","svmLinear","knn","rf","nnet") #for 2 groups
+  #technique <- c("glmnet","naive_bayes","svmLinear","knn","rf","nnet") # for more than 2 groups
+  accuracy <-c()
+  predictors <- c()
+  techname <- c("GLM","NB","SVM","KNN","RF","NNET")
+  results <- data.frame()
+  for(i in 1:length(technique)){
+    for(j in 1:length(VARS)){
+      predictors[j] <- paste(eval(parse(text = VARS[j])), collapse = "+")
+      tryCatch({
+        t0 <- Sys.time()
+        if(technique[i]=="nnet"| technique[i]=="rf"){
+          model <- train(as.formula(paste0("r","~",predictors[j])),
+                       method = technique[i],
+                       data = train,
+                       metric ="Accuracy",
+                       trControl=trainControl(method="none"))
+        }else{
+          if(technique[i]=="glmnet"){
+          model <- train(as.formula(paste0("r","~",predictors[j])),
+                       method = technique[i],
+                       data = train,
+                       metric ="Accuracy",
+                       family = "multinomial")
+          }else{
+          model <- train(as.formula(paste0("r","~",predictors[j])),
+                       method = technique[i],
+                       data = train,
+                       metric ="Accuracy")
+        }
+        }
+        predictions <- predict(model,test)
+        CM <- confusionMatrix(predictions,test$r)
+        t1 <- Sys.time()
+        print(technique[i])
+        print(VARS[j])
+        accuracy <- CM$overall[1]
+        results<-rbind(results,data.frame(Model = paste(techname[i], VARS[j], sep="_"), Technique = techname[i],
+                                          Rfunction = technique[i], Variables = VARS[j], Accuracy = accuracy, Time = t1-t0))  
+      },error = function(e){})
+    }
+  }
+  row.names (results) <- 1: nrow (results)
+  results<-results[order(results$Time, decreasing = F),]
+  results<-results[order(results$Accuracy, decreasing = T),]
+  return(results)
+}
+
+##################################
+### deptshclassifiers function ###
+##################################
+
+# This function contains functional classifiers based on depths:
+# maximum depth classifier and DD^G classifier.
+
+depthsclassifiers <- function(r_train, X_train_func, test_fd, X_test_func, r_test_df){
+  depth<-c("FM","mode","RP")
+  classifier <- c("DD1","DD2","DD3","glm","gam","lda","qda","knn","knn")
+  for (i in 1:length(depth)) {
+    t0 <- Sys.time()
+    fda_class_depth <- classif.depth(r_train,X_train_func,X_test_func)
+    pred_test_depth <- predict(fda_class_DD,test_fd,type="class")
+    # CM_depth <- confusionMatrix(pred_test_depth, as.factor(r_test_df))
+    # print(CM_depth)
+    Accuracy_depth <- sum(r_test==fda_class_depth$group.pred)/nrow(X_test_func)
+    t1 <- Sys.time()
+    results<-rbind(results, data.frame(Technique = paste("MD", depth[i], sep="_"), Accuracy = Accuracy_depth, Time = t1-t0))
+    for (j in 1:length(classifier)) {
+      t0 <- Sys.time()
+      print(classifier[j])
+      print(depth[i])
+      fda_class_DD <- classif.DD(r_train,X_train_func,control=list(draw=FALSE), 
+                                 depth = depth[i], classif = classifier[j])
+      pred_test_DD <- predict(fda_class_DD,test_fd,type="class")
+      CM_DD <- confusionMatrix(pred_test_DD, as.factor(r_test_df))
+      print(CM_DD)
+      Accuracy_DD <- confusionMatrix(pred_test_DD, as.factor(r_test_df))$overall[1]
+      t1 <- Sys.time()
+      results<-rbind(results, data.frame(Technique = paste(classifier[j], depth[i], sep="_"), Accuracy = Accuracy_DD, Time = t1-t0))
+    }
+  }
+  return(results)
+}
+
+##############################
+### depthapproach function ###
+##############################
+
+# Thus function apply functional classifiers to the original data.
+
+depthapproach <- function(data, t, rangeval, r, nbasis, norder){
+  results <- data.frame()
+  sample <- sample(1:nrow(data), round((nrow(data)*0.7)), replace=FALSE)
+
+  X_train <- data[sample,]
+  r_train <- r[sample]
+  X_test <- data[-sample,]
+  r_test <- r[-sample]
+  
+  X_train_func <- fdata(X_train,argvals=t,rangeval=rangeval)
+  X_test_func <- fdata(X_test,argvals=t,rangeval=rangeval)
+  r_train_df <- data.frame(r_train)
+  r_test_df <- r_test
+  
+  
+  train_pairs <- list("df"=r_train_df,"x"=X_train_func)
+  test_fd <- list("x"=X_test_func)
+  
+  
+  basis <- create.bspline.basis(rangeval=rangeval, norder=as.numeric(norder), nbasis = as.numeric(nbasis))
+
+  results_DD <- DD_classifier(r_train = r_train, X_train_func = X_train_func, test_fd = test_fd, 
+                              X_test_func = X_test_func, r_test_df = r_test_df)
+  results <- rbind(results, results_DD)
+  
+  return(results)
+}
+```
+
+```{r Simulations}
+B<-50
+models_sm <- data.frame()
+models_ind <- data.frame()
+models_depth <- data.frame()
+for (b in 1:B) {
+      print(b)
+      dt <- data ("2") #change simulation. For simulationes of more than 2 groups
+                       #it is necessary to change one line in smoothedmodels() and
+                       #indexesapproach() functions 
+      set.seed(b)
+      datasets <- indexes (data = dt$data, t = dt$t, rangeval = dt$rangeval, nbasis = 4, norder = 4, truelabels = dt$truelabels)
+      #Smoothed data as input in multivariate classifiers
+      results_sm <- smoothedmodels(datasets$smooth)
+      models_sm <- rbind(models_sm, results_sm)
+      #Our approach
+      results_ind <- indexesapproach(datasets$indexes)
+      models_ind <- rbind(models_ind, results_ind)
+      #Depth-based approach
+      results_depth <- depthapproach(data = dt$data, t = dt$t, rangeval = dt$rangeval, nbasis = 4, norder = 4, r = dt$truelabels)
+      models_depth <- rbind(models_depth, results_depth)
+}
+#Smoothed data as input in multivariate classifiers results
+mean_results_sm <- models_sm %>%
+  group_by(Model) %>%
+  summarise(SD = sd(Accuracy), Accuracy = mean(Accuracy), Time = mean(Time))
+  
+mean_results_sm<-mean_results_sm[order(mean_results_sm$Time, decreasing = F),]
+mean_results_sm<-mean_results_sm[order(mean_results_sm$Accuracy, decreasing = T),]
+#Our approach results
+mean_results_ind <- models_ind %>%
+  group_by(Model) %>%
+  summarise(SD = sd(Accuracy), Accuracy = mean(Accuracy), Time = mean(Time))
+  
+mean_results_ind<-mean_results_ind[order(mean_results_ind$Time, decreasing = F),]
+mean_results_ind<-mean_results_ind[order(mean_results_ind$Accuracy, decreasing = T),]
+#Depth-based approach results
+mean_results_depth <- models_depth %>%
+  group_by(Technique) %>%
+  summarise(SD = sd(Accuracy), Accuracy = mean(Accuracy), Time = mean(Time))
+  
+mean_results_depth<-mean_results_depth[order(mean_results_depth$Time, decreasing = F),]
+mean_results_depth<-mean_results_depth[order(mean_results_depth$Accuracy, decreasing = T),]
+```
+
+```{r growth}
+dt <- data ("growth")
+datasets <- indexes (data = dt$data, t = dt$t, rangeval = dt$rangeval, nbasis = 6, norder = 6, truelabels = dt$truelabels)
+set.seed(123)
+#Smoothed data as input in multivariate classifiers results
+models_sm<-smoothedmodels(datasets$smooth)
+models_sm<-models_sm[order(models_sm$Time, decreasing = F),]
+models_sm<-models_sm[order(models_sm$Accuracy, decreasing = T),]
+# Our approach
+models_ind <- indexesapproach(datasets$indexes)
+mean_results_ind <- models_ind %>%
+  group_by(Model) %>%
+  summarise(Accuracy = mean(Accuracy), Time = mean(Time))
+  
+mean_results_ind<-mean_results_ind[order(mean_results_ind$Time, decreasing = F),]
+mean_results_ind<-mean_results_ind[order(mean_results_ind$Accuracy, decreasing = T),]
+# Depths-based approach
+models_depth <- depthapproach(data = dt$data, t = dt$t, rangeval = dt$rangeval, nbasis = 6, norder = 6, r = dt$truelabels)
+mean_results_depth <- models_depth %>%
+  group_by(Technique) %>%
+  summarise(Accuracy = mean(Accuracy), Time = mean(Time))
+  
+mean_results_depth<-mean_results_depth[order(mean_results_depth$Time, decreasing = F),]
+mean_results_depth<-mean_results_depth[order(mean_results_depth$Accuracy, decreasing = T),]
+```
+
+
+
+
